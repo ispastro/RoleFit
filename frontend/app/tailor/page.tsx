@@ -10,6 +10,8 @@ export default function TailorPage() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -23,16 +25,19 @@ export default function TailorPage() {
     setResult(null);
 
     try {
-      const response = await fetch("http://localhost:8000/api/tailor", {
+      const response = await fetch(`${API_URL}/api/tailor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ job_description: jobDescription })
       });
 
-      if (!response.ok) throw new Error("Failed to tailor resume");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to tailor resume");
+      }
 
       const data = await response.json();
-      setResult(data.download_url);
+      setResult(`${API_URL}${data.download_url}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
