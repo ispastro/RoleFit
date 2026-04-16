@@ -1,22 +1,40 @@
 class LaTeXGenerator:
-    def __init__(self, original_tex_path):
-        with open(original_tex_path, 'r', encoding='utf-8') as f:
-            self.template = f.read()
+    def __init__(self, original_file_path: str):
+        self.original_file_path = original_file_path
     
-    def replace_section(self, section_name, new_content):
-        """Replace a section in the LaTeX template with new content"""
-        import re
-        pattern = rf'(\\section\{{{section_name}\}})(.*?)(?=\\section|\\end\{{document\}})'
-        replacement = rf'\1\n{new_content}\n'
-        self.template = re.sub(pattern, replacement, self.template, flags=re.DOTALL)
-    
-    def generate(self, output_path):
-        """Write the tailored resume to a new file"""
+    def generate(self, sections: dict, output_path: str):
+        # Build the complete LaTeX document
+        latex_content = sections.get('preamble', '') + '\\begin{document}\n\n'
+        
+        # Add heading
+        if 'heading' in sections:
+            latex_content += '%----------HEADING----------\n'
+            latex_content += sections['heading'] + '\n\n'
+        
+        # Add experience
+        if 'experience' in sections:
+            latex_content += '%-----------EXPERIENCE-----------\n'
+            latex_content += sections['experience'] + '\n\n'
+        
+        # Add projects
+        if 'projects' in sections:
+            latex_content += '%-----------PROJECTS-----------\n'
+            latex_content += sections['projects'] + '\n\n'
+        
+        # Add education
+        if 'education' in sections:
+            latex_content += '%-----------EDUCATION-----------\n'
+            latex_content += sections['education'] + '\n\n'
+        
+        # Add skills
+        if 'skills' in sections:
+            latex_content += '%-----------SKILLS-----------\n'
+            latex_content += sections['skills'] + '\n\n'
+        
+        latex_content += '\\end{document}'
+        
+        # Write to file
         with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(self.template)
-    
-    def generate_tailored_resume(self, tailored_sections, output_path):
-        """Generate tailored resume with new sections"""
-        for section_name, new_content in tailored_sections.items():
-            self.replace_section(section_name.upper(), new_content)
-        self.generate(output_path)
+            f.write(latex_content)
+        
+        return output_path

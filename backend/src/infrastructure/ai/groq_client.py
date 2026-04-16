@@ -9,11 +9,14 @@ class GroqClient:
         self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         self.model = "llama-3.3-70b-versatile"
     
-    def chat(self, messages, temperature=0.7, max_tokens=2000):
+    def chat(self, system_prompt: str, user_message: str) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.7,
+            max_tokens=2000
         )
         return response.choices[0].message.content

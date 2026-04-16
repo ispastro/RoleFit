@@ -1,1 +1,1 @@
-# AI services
+# AI infrastructure

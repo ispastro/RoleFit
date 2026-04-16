@@ -1,9 +1,7 @@
-from ..entities.resume import Resume
-from ..entities.job import Job
+from src.domain.entities.resume import Resume
+from src.domain.entities.job import Job
 
 class TailorResumeUseCase:
-    """Use case: Tailor resume to match job requirements"""
-    
     def __init__(self, job_analyzer, resume_analyzer, content_rewriter, latex_generator):
         self.job_analyzer = job_analyzer
         self.resume_analyzer = resume_analyzer
@@ -11,27 +9,31 @@ class TailorResumeUseCase:
         self.latex_generator = latex_generator
     
     def execute(self, resume: Resume, job: Job, output_path: str) -> str:
-        """Execute the resume tailoring workflow"""
-        
         # Step 1: Analyze job
-        job.analysis = self.job_analyzer.analyze(job.description)
+        job_analysis = self.job_analyzer.analyze(job.description)
         
         # Step 2: Analyze resume
-        resume_analysis = self.resume_analyzer.analyze(resume.to_dict())
+        resume_analysis = self.resume_analyzer.analyze(resume.sections)
         
-        # Step 3: Rewrite sections
+        # Step 3: Tailor sections
         tailored_sections = {}
-        for section_name in ['experience', 'projects', 'skills']:
-            original_content = getattr(resume, section_name)
-            tailored_content = self.content_rewriter.rewrite_section(
-                original_content,
-                job.analysis,
-                resume_analysis,
-                section_name.upper()
-            )
-            tailored_sections[section_name] = tailored_content
         
-        # Step 4: Generate output
-        self.latex_generator.generate_tailored_resume(tailored_sections, output_path)
+        # Keep preamble and heading as-is
+        tailored_sections['preamble'] = resume.sections.get('preamble', '')
+        tailored_sections['heading'] = resume.sections.get('heading', '')
         
-        return output_path
+        # Rewrite main sections
+        for section in ['experience', 'projects', 'skills']:
+            if section in resume.sections:
+                tailored_sections[section] = self.content_rewriter.rewrite_section(
+                    section, 
+                    resume.sections[section],
+                    job_analysis,
+                    resume_analysis
+                )
+        
+        # Keep education as-is (usually doesn't need tailoring)
+        tailored_sections['education'] = resume.sections.get('education', '')
+        
+        # Step 4: Generate new resume
+        return self.latex_generator.generate(tailored_sections, output_path)
