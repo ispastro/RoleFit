@@ -1,4 +1,4 @@
-from backend.groq_client import GroqClient
+from .groq_client import GroqClient
 
 class ContentRewriter:
     def __init__(self):

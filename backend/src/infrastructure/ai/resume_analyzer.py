@@ -1,4 +1,4 @@
-from backend.groq_client import GroqClient
+from .groq_client import GroqClient
 
 class ResumeAnalyzer:
     def __init__(self):

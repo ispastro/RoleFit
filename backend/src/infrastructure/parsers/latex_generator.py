@@ -14,3 +14,9 @@ class LaTeXGenerator:
         """Write the tailored resume to a new file"""
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(self.template)
+    
+    def generate_tailored_resume(self, tailored_sections, output_path):
+        """Generate tailored resume with new sections"""
+        for section_name, new_content in tailored_sections.items():
+            self.replace_section(section_name.upper(), new_content)
+        self.generate(output_path)
