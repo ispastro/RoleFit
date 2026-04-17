@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { Loader2, CheckCircle, ArrowLeft, Download, Eye, RefreshCw, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle, ArrowLeft, Download, Eye, RefreshCw, AlertCircle, FileText } from "lucide-react";
 
 type ViewMode = "preview" | "download";
 
@@ -39,7 +39,7 @@ export default function TailorPage() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       const response = await fetch(`${API_URL}/api/tailor`, {
         method: "POST",
@@ -85,6 +85,31 @@ export default function TailorPage() {
     setTexContent(null);
     setError(null);
   }, []);
+
+  const handleCompileToPDF = useCallback(() => {
+    if (!texContent) return;
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'https://www.overleaf.com/docs';
+    form.target = '_blank';
+    
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'snip';
+    input.value = texContent;
+    
+    const nameInput = document.createElement('input');
+    nameInput.type = 'hidden';
+    nameInput.name = 'snip_name';
+    nameInput.value = 'resume.tex';
+    
+    form.appendChild(input);
+    form.appendChild(nameInput);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  }, [texContent]);
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     setViewMode(mode);
@@ -208,6 +233,12 @@ export default function TailorPage() {
                     >
                       <RefreshCw className="w-4 h-4" /> Re-Tailor
                     </button>
+                    <button
+                      onClick={handleCompileToPDF}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-green-500/20 group"
+                    >
+                      <FileText className="w-4 h-4 group-hover:animate-pulse" /> Compile to PDF
+                    </button>
                     <a
                       href={result}
                       download
@@ -234,6 +265,12 @@ export default function TailorPage() {
                       className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
                     >
                       <RefreshCw className="w-4 h-4" /> Re-Tailor
+                    </button>
+                    <button
+                      onClick={handleCompileToPDF}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-green-500/20 group"
+                    >
+                      <FileText className="w-4 h-4 group-hover:animate-pulse" /> Compile to PDF
                     </button>
                     <a
                       href={result}

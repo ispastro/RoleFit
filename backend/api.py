@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
 import logging
 from pathlib import Path
+import urllib.parse
 
 from src.domain.entities.resume import Resume
 from src.domain.entities.job import Job
@@ -50,11 +51,11 @@ def health_check():
     return {"status": "healthy", "service": "RoleFit API"}
 
 @app.post("/api/tailor", response_model=TailorResponse)
-async def tailor_resume(request: TailorRequest):
+async def tailor_resume(body: TailorRequest, request: Request):
     try:
         logger.info("Received tailoring request")
         
-        if not request.job_description.strip():
+        if not body.job_description.strip():
             raise HTTPException(status_code=400, detail="Job description is required")
         
         resume_path = os.path.join("latex", "haile_resume.tex")
@@ -66,7 +67,7 @@ async def tailor_resume(request: TailorRequest):
         parser = LaTeXParser(resume_path)
         resume_sections = parser.get_all_sections()
         resume = Resume.from_sections(resume_sections)
-        job = Job(description=request.job_description)
+        job = Job(description=body.job_description)
         
         logger.info("Initializing AI services...")
         use_case = TailorResumeUseCase(
@@ -94,7 +95,7 @@ async def tailor_resume(request: TailorRequest):
         logger.info(f"Resume tailored successfully: {result}")
         
         return TailorResponse(
-            message="Resume tailored successfully (download .tex file and compile locally)",
+            message="Resume tailored successfully",
             download_url=f"/api/download/{Path(result).name}",
             tex_content=tex_content
         )
