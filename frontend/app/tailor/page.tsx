@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Loader2, CheckCircle, ArrowLeft, Download } from "lucide-react";
+import { Loader2, CheckCircle, ArrowLeft, Download, Eye, RefreshCw } from "lucide-react";
 
 export default function TailorPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [texContent, setTexContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -39,11 +41,19 @@ export default function TailorPage() {
 
       const data = await response.json();
       setResult(`${API_URL}${data.download_url}`);
+      setTexContent(data.tex_content || null);
+      setShowPreview(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReTailor = () => {
+    setShowPreview(false);
+    setResult(null);
+    setTexContent(null);
   };
 
   return (
@@ -117,23 +127,88 @@ export default function TailorPage() {
           </div>
         )}
 
-        {/* Success */}
+        {/* Success with Preview */}
         {result && (
-          <div className="mt-6 p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg relative overflow-hidden">
-            {/* Success glow */}
-            <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-green-500/5 animate-pulse" />
-            <div className="relative">
-              <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-400" /> Resume Tailored Successfully!
-              </h3>
-              <a
-                href={result}
-                download
-                className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-neutral-100 text-black font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20 group"
+          <div className="mt-6 space-y-4">
+            {/* Preview/Download Toggle */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowPreview(true)}
+                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
+                  showPreview
+                    ? "bg-white text-black"
+                    : "bg-neutral-900/50 text-neutral-300 hover:bg-neutral-900/80"
+                }`}
               >
-                <Download className="w-4 h-4 group-hover:animate-bounce" /> Download Resume
-              </a>
+                <Eye className="w-4 h-4 inline mr-2" /> Preview
+              </button>
+              <button
+                onClick={() => setShowPreview(false)}
+                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
+                  !showPreview
+                    ? "bg-white text-black"
+                    : "bg-neutral-900/50 text-neutral-300 hover:bg-neutral-900/80"
+                }`}
+              >
+                <Download className="w-4 h-4 inline mr-2" /> Download
+              </button>
             </div>
+
+            {/* Preview Panel */}
+            {showPreview && texContent && (
+              <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg relative overflow-hidden">
+                <div className="relative">
+                  <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-400" /> Resume Preview
+                  </h3>
+                  <div className="bg-black/50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <pre className="text-neutral-300 text-xs font-mono whitespace-pre-wrap">{texContent}</pre>
+                  </div>
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      onClick={handleReTailor}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
+                    >
+                      <RefreshCw className="w-4 h-4" /> Re-Tailor
+                    </button>
+                    <a
+                      href={result}
+                      download
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-neutral-100 text-black font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20 group"
+                    >
+                      <Download className="w-4 h-4 group-hover:animate-bounce" /> Download PDF
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Download Panel */}
+            {!showPreview && (
+              <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-green-500/5 animate-pulse" />
+                <div className="relative">
+                  <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-400" /> Resume Tailored Successfully!
+                  </h3>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleReTailor}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
+                    >
+                      <RefreshCw className="w-4 h-4" /> Re-Tailor
+                    </button>
+                    <a
+                      href={result}
+                      download
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-neutral-100 text-black font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20 group"
+                    >
+                      <Download className="w-4 h-4 group-hover:animate-bounce" /> Download PDF
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -39,6 +39,7 @@ class TailorRequest(BaseModel):
 class TailorResponse(BaseModel):
     message: str
     download_url: str
+    tex_content: str
 
 @app.get("/")
 def root():
@@ -81,14 +82,26 @@ async def tailor_resume(request: TailorRequest):
         logger.info("Tailoring resume...")
         result = use_case.execute(resume, job, output_path)
         
+        # Read the LaTeX content for preview
+        if not os.path.exists(result):
+            raise RuntimeError("Failed to generate tailored resume")
+            
+        with open(result, 'r', encoding='utf-8') as f:
+            tex_content = f.read()
+        
         # Compile to PDF
         logger.info("Compiling to PDF...")
         final_file = compile_latex_to_pdf(result)
+        
+        if not os.path.exists(final_file):
+            raise RuntimeError("Failed to compile PDF")
+            
         logger.info(f"Resume tailored successfully: {final_file}")
         
         return TailorResponse(
             message="Resume tailored successfully",
-            download_url=f"/api/download/{Path(final_file).name}"
+            download_url=f"/api/download/{Path(final_file).name}",
+            tex_content=tex_content
         )
     
     except HTTPException:
@@ -99,20 +112,29 @@ async def tailor_resume(request: TailorRequest):
 
 @app.get("/api/download/{filename}")
 async def download_resume(filename: str):
-    # Only allow PDF downloads
-    if not filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF downloads are supported")
-    
-    file_path = os.path.join("output", filename)
-    
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type="application/pdf"
-    )
+    try:
+        # Only allow PDF downloads
+        if not filename.endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF downloads are supported")
+        
+        # Sanitize filename to prevent directory traversal
+        filename = os.path.basename(filename)
+        file_path = os.path.join("output", filename)
+        
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        logger.info(f"Serving file: {filename}")
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type="application/pdf"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading file: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to download file")
 
 if __name__ == "__main__":
     import uvicorn
