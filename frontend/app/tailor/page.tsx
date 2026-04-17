@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { Loader2, CheckCircle, ArrowLeft, Download, Eye, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle, ArrowLeft, Download, Eye, RefreshCw, AlertCircle } from "lucide-react";
+
+type ViewMode = "preview" | "download";
 
 export default function TailorPage() {
   const [jobDescription, setJobDescription] = useState("");
@@ -10,14 +12,22 @@ export default function TailorPage() {
   const [result, setResult] = useState<string | null>(null);
   const [texContent, setTexContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("preview");
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = useMemo(
+    () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+    []
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const isFormValid = useMemo(
+    () => jobDescription.trim().length > 0,
+    [jobDescription]
+  );
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!jobDescription.trim()) {
+    if (!isFormValid) {
       setError("Please paste a job description");
       return;
     }
@@ -25,36 +35,60 @@ export default function TailorPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setTexContent(null);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+
       const response = await fetch(`${API_URL}/api/tailor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_description: jobDescription })
+        body: JSON.stringify({ job_description: jobDescription }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.detail || "Failed to tailor resume";
-        throw new Error(errorMsg);
+        throw new Error(errorData.detail || "Failed to tailor resume");
       }
 
       const data = await response.json();
+      
+      if (!data.download_url || !data.tex_content) {
+        throw new Error("Invalid response from server");
+      }
+
       setResult(`${API_URL}${data.download_url}`);
-      setTexContent(data.tex_content || null);
-      setShowPreview(true);
+      setTexContent(data.tex_content);
+      setViewMode("preview");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      if (err instanceof Error) {
+        if (err.name === "AbortError") {
+          setError("Request timed out. Please try again.");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobDescription, isFormValid, API_URL]);
 
-  const handleReTailor = () => {
-    setShowPreview(false);
+  const handleReTailor = useCallback(() => {
+    setViewMode("preview");
     setResult(null);
     setTexContent(null);
-  };
+    setError(null);
+  }, []);
+
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+  }, []);
 
   return (
     <main className="min-h-screen bg-black relative overflow-hidden">
@@ -122,8 +156,9 @@ export default function TailorPage() {
 
         {/* Error */}
         {error && (
-          <div className="mt-6 p-4 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg text-neutral-300">
-            {error}
+          <div className="mt-6 p-4 bg-red-900/20 backdrop-blur-sm border border-red-800/50 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-red-300 text-sm">{error}</p>
           </div>
         )}
 
@@ -133,29 +168,31 @@ export default function TailorPage() {
             {/* Preview/Download Toggle */}
             <div className="flex gap-3">
               <button
-                onClick={() => setShowPreview(true)}
+                onClick={() => handleViewModeChange("preview")}
                 className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-                  showPreview
+                  viewMode === "preview"
                     ? "bg-white text-black"
                     : "bg-neutral-900/50 text-neutral-300 hover:bg-neutral-900/80"
                 }`}
+                aria-pressed={viewMode === "preview"}
               >
                 <Eye className="w-4 h-4 inline mr-2" /> Preview
               </button>
               <button
-                onClick={() => setShowPreview(false)}
+                onClick={() => handleViewModeChange("download")}
                 className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-                  !showPreview
+                  viewMode === "download"
                     ? "bg-white text-black"
                     : "bg-neutral-900/50 text-neutral-300 hover:bg-neutral-900/80"
                 }`}
+                aria-pressed={viewMode === "download"}
               >
                 <Download className="w-4 h-4 inline mr-2" /> Download
               </button>
             </div>
 
             {/* Preview Panel */}
-            {showPreview && texContent && (
+            {viewMode === "preview" && texContent && (
               <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg relative overflow-hidden">
                 <div className="relative">
                   <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
@@ -184,7 +221,7 @@ export default function TailorPage() {
             )}
 
             {/* Download Panel */}
-            {!showPreview && (
+            {viewMode === "download" && (
               <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-green-500/5 animate-pulse" />
                 <div className="relative">
