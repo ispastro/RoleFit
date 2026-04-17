@@ -14,6 +14,7 @@ from src.infrastructure.ai.resume_analyzer import ResumeAnalyzer
 from src.infrastructure.ai.content_rewriter import ContentRewriter
 from src.infrastructure.parsers.latex_parser import LaTeXParser
 from src.infrastructure.parsers.latex_generator import LaTeXGenerator
+from src.infrastructure.parsers.pdf_compiler import compile_latex_to_pdf
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -79,11 +80,15 @@ async def tailor_resume(request: TailorRequest):
         
         logger.info("Tailoring resume...")
         result = use_case.execute(resume, job, output_path)
-        logger.info(f"Resume tailored successfully: {result}")
+        
+        # Compile to PDF
+        logger.info("Compiling to PDF...")
+        final_file = compile_latex_to_pdf(result)
+        logger.info(f"Resume tailored successfully: {final_file}")
         
         return TailorResponse(
             message="Resume tailored successfully",
-            download_url=f"/api/download/{Path(result).name}"
+            download_url=f"/api/download/{Path(final_file).name}"
         )
     
     except HTTPException:
@@ -94,6 +99,10 @@ async def tailor_resume(request: TailorRequest):
 
 @app.get("/api/download/{filename}")
 async def download_resume(filename: str):
+    # Only allow PDF downloads
+    if not filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF downloads are supported")
+    
     file_path = os.path.join("output", filename)
     
     if not os.path.exists(file_path):
@@ -102,7 +111,7 @@ async def download_resume(filename: str):
     return FileResponse(
         path=file_path,
         filename=filename,
-        media_type="application/x-latex"
+        media_type="application/pdf"
     )
 
 if __name__ == "__main__":

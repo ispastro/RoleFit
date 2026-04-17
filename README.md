@@ -20,7 +20,7 @@ Built with FastAPI, Next.js, and Groq AI.
 # Backend
 cd backend
 python -m venv venv
-venv\Scripts\activate  # Windows
+venv\Scripts\activate  # Windows (Mac/Linux: source venv/bin/activate)
 pip install -r requirements.txt
 
 # Frontend
@@ -80,7 +80,8 @@ RoleFit/
 1. **Paste** job description in the UI
 2. **AI analyzes** requirements using Groq (Llama 3.3 70B)
 3. **Tailors** your resume sections to match
-4. **Download** LaTeX file
+4. **Compiles** to PDF via cloud API
+5. **Download** ready-to-apply PDF
 
 ---
 
@@ -89,6 +90,7 @@ RoleFit/
 **Backend:**
 - FastAPI (API)
 - Groq AI (LLM)
+- LaTeX Online API (PDF compilation)
 - Python 3.13
 
 **Frontend:**
@@ -96,13 +98,15 @@ RoleFit/
 - TypeScript
 - Tailwind CSS 4
 - Lucide Icons
+- Geist Font
 
 ---
 
 ## 📝 API Endpoints
 
 - `POST /api/tailor` - Tailor resume
-- `GET /api/download/{filename}` - Download result
+- `GET /api/download/{filename}` - Download PDF
+- `GET /health` - Health check
 - `GET /docs` - Interactive API docs
 
 ---
@@ -110,11 +114,25 @@ RoleFit/
 ## 🔥 Features
 
 - ⚡ Lightning fast (Groq inference)
-- 🎨 Clean, minimalist UI
+- 🎨 Clean, minimalist UI with Aurora-style design
 - 🔒 Secure (API key in .env)
 - 📱 Responsive design
 - 🎯 Smart AI matching
 - ✨ Preserves your voice
+- 📄 Automatic PDF generation (no LaTeX installation needed)
+- 🌐 Deploy anywhere
+
+---
+
+## 🚀 Deployment
+
+No LaTeX installation required! The app uses a free cloud API for PDF compilation.
+
+**Deploy to:**
+- Vercel (Frontend)
+- Railway/Render (Backend)
+- AWS/GCP/Azure
+- Docker
 
 ---
 
