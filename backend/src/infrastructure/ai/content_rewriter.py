@@ -11,10 +11,12 @@ class ContentRewriter:
 CRITICAL RULES:
 1. Maintain the EXACT LaTeX formatting and structure
 2. Keep the original writing style and tone
-3. Emphasize relevant skills and experiences
-4. Add keywords naturally
-5. Keep it concise and impactful
-6. Return ONLY the rewritten LaTeX content, no explanations"""
+3. For EXPERIENCE: DO NOT add new technologies, frameworks, or tools not already in the original content - ONLY emphasize existing ones
+4. For EXPERIENCE: ONLY reword bullet points to highlight relevance - keep all tech stacks truthful
+5. For SKILLS: ONLY reorder existing skills to prioritize job-relevant ones - DO NOT add new skills
+6. Focus on emphasizing keywords from job description that ALREADY exist in the content
+7. Rewrite descriptions for impact, but never fabricate technical details
+8. Return ONLY the rewritten LaTeX content, no explanations"""
         
         user_message = f"""Job Requirements:
 {job_analysis.get('analysis', '')}

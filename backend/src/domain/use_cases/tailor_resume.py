@@ -22,8 +22,8 @@ class TailorResumeUseCase:
         tailored_sections['preamble'] = resume.sections.get('preamble', '')
         tailored_sections['heading'] = resume.sections.get('heading', '')
         
-        # Rewrite main sections
-        for section in ['experience', 'projects', 'skills']:
+        # Rewrite only experience and skills sections
+        for section in ['experience', 'skills']:
             if section in resume.sections:
                 tailored_sections[section] = self.content_rewriter.rewrite_section(
                     section, 
@@ -32,7 +32,8 @@ class TailorResumeUseCase:
                     resume_analysis
                 )
         
-        # Keep education as-is (usually doesn't need tailoring)
+        # Keep projects and education as-is (don't change tech stacks)
+        tailored_sections['projects'] = resume.sections.get('projects', '')
         tailored_sections['education'] = resume.sections.get('education', '')
         
         # Step 4: Generate new resume
