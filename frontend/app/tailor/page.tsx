@@ -213,7 +213,7 @@ export default function TailorPage() {
                       download
                       className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-neutral-100 text-black font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20 group"
                     >
-                      <Download className="w-4 h-4 group-hover:animate-bounce" /> Download PDF
+                      <Download className="w-4 h-4 group-hover:animate-bounce" /> Download LaTeX
                     </a>
                   </div>
                 </div>
@@ -240,7 +240,7 @@ export default function TailorPage() {
                       download
                       className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-neutral-100 text-black font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20 group"
                     >
-                      <Download className="w-4 h-4 group-hover:animate-bounce" /> Download PDF
+                      <Download className="w-4 h-4 group-hover:animate-bounce" /> Download LaTeX
                     </a>
                   </div>
                 </div>

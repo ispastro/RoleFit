@@ -89,18 +89,13 @@ async def tailor_resume(request: TailorRequest):
         with open(result, 'r', encoding='utf-8') as f:
             tex_content = f.read()
         
-        # Compile to PDF
-        logger.info("Compiling to PDF...")
-        final_file = compile_latex_to_pdf(result)
-        
-        if not os.path.exists(final_file):
-            raise RuntimeError("Failed to compile PDF")
-            
-        logger.info(f"Resume tailored successfully: {final_file}")
+        # For now, return .tex file directly
+        # PDF compilation APIs are unreliable
+        logger.info(f"Resume tailored successfully: {result}")
         
         return TailorResponse(
-            message="Resume tailored successfully",
-            download_url=f"/api/download/{Path(final_file).name}",
+            message="Resume tailored successfully (download .tex file and compile locally)",
+            download_url=f"/api/download/{Path(result).name}",
             tex_content=tex_content
         )
     
@@ -113,9 +108,9 @@ async def tailor_resume(request: TailorRequest):
 @app.get("/api/download/{filename}")
 async def download_resume(filename: str):
     try:
-        # Only allow PDF downloads
-        if not filename.endswith('.pdf'):
-            raise HTTPException(status_code=400, detail="Only PDF downloads are supported")
+        # Allow both PDF and TEX downloads
+        if not (filename.endswith('.pdf') or filename.endswith('.tex')):
+            raise HTTPException(status_code=400, detail="Only PDF and TEX downloads are supported")
         
         # Sanitize filename to prevent directory traversal
         filename = os.path.basename(filename)
@@ -124,11 +119,17 @@ async def download_resume(filename: str):
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail="File not found")
         
+        # Determine media type
+        if filename.endswith('.pdf'):
+            media_type = "application/pdf"
+        else:
+            media_type = "application/x-latex"
+        
         logger.info(f"Serving file: {filename}")
         return FileResponse(
             path=file_path,
             filename=filename,
-            media_type="application/pdf"
+            media_type=media_type
         )
     except HTTPException:
         raise
