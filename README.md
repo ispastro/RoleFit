@@ -270,6 +270,6 @@ MIT License - feel free to use for personal or commercial projects.
 
 **Built by engineers, for engineers** 🚀
 
-[⭐ Star this repo](https://github.com/yourusername/rolefit) • [🐛 Report Bug](https://github.com/yourusername/rolefit/issues) • [💡 Request Feature](https://github.com/yourusername/rolefit/issues)
+[⭐ Star this repo](https://github.com/ispastro/RoleFit) • [🐛 Report Bug](https://github.com/yourusername/rolefit/issues) • [💡 Request Feature](https://github.com/yourusername/rolefit/issues)
 
 </div>
