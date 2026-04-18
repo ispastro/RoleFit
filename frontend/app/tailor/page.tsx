@@ -2,22 +2,18 @@
 
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { Loader2, CheckCircle, ArrowLeft, Download, Eye, RefreshCw, AlertCircle, FileText } from "lucide-react";
-
-type ViewMode = "preview" | "download";
+import { Loader2, ArrowLeft, Download, RefreshCw, AlertCircle, FileText, ExternalLink, Copy, Check } from "lucide-react";
 
 export default function TailorPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [texContent, setTexContent] = useState<string | null>(null);
+  const [latexCode, setLatexCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("preview");
-  const [pdfGenerating, setPdfGenerating] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [inputMode, setInputMode] = useState<'file' | 'text'>('file');
   const [isDragging, setIsDragging] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const API_URL = useMemo(
     () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
@@ -49,13 +45,9 @@ export default function TailorPage() {
 
     setLoading(true);
     setError(null);
-    setResult(null);
-    setTexContent(null);
+    setLatexCode(null);
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
-
       const formData = new FormData();
       formData.append('job_description', jobDescription);
       
@@ -65,49 +57,82 @@ export default function TailorPage() {
         formData.append('resume_text', resumeText);
       }
 
-      const response = await fetch(`${API_URL}/api/tailor`, {
-        method: "POST",
-        body: formData,
-        signal: controller.signal
+      const response = await fetch(`${API_URL}/api/tailor-latex`, {
+        method: 'POST',
+        body: formData
       });
-
-      clearTimeout(timeoutId);
-
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to tailor resume");
+        throw new Error(errorData.detail || 'Failed to generate LaTeX code');
       }
-
-      const data = await response.json();
       
-      if (!data.download_url || !data.tex_content) {
-        throw new Error("Invalid response from server");
-      }
-
-      setResult(`${API_URL}${data.download_url}`);
-      setTexContent(data.tex_content);
-      setViewMode("preview");
+      const data = await response.json();
+      setLatexCode(data.latex_code);
     } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === "AbortError") {
-          setError("Request timed out. Please try again.");
-        } else {
-          setError(err.message);
-        }
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
+      console.error('Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate LaTeX code');
     } finally {
       setLoading(false);
     }
   }, [jobDescription, isFormValid, API_URL, inputMode, resumeFile, resumeText]);
 
-  const handleReTailor = useCallback(() => {
-    setViewMode("preview");
-    setResult(null);
-    setTexContent(null);
+  const handleReset = useCallback(() => {
+    setLatexCode(null);
     setError(null);
+    setJobDescription("");
+    setResumeFile(null);
+    setResumeText("");
+    setCopied(false);
   }, []);
+
+  const handleCopyLatex = useCallback(() => {
+    if (latexCode) {
+      navigator.clipboard.writeText(latexCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [latexCode]);
+
+  const handleOpenOverleaf = useCallback(async () => {
+    if (!latexCode) return;
+    
+    setLoading(true);
+    
+    try {
+      // Create a form and submit to Overleaf
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = 'https://www.overleaf.com/docs';
+      form.target = '_blank';
+      
+      // Add the LaTeX code as snip
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'snip';
+      input.value = latexCode;
+      form.appendChild(input);
+      
+      // Add engine
+      const engineInput = document.createElement('input');
+      engineInput.type = 'hidden';
+      engineInput.name = 'engine';
+      engineInput.value = 'pdflatex';
+      form.appendChild(engineInput);
+      
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+    } catch (err) {
+      console.error('Error opening Overleaf:', err);
+      // Fallback: copy and open
+      navigator.clipboard.writeText(latexCode);
+      setCopied(true);
+      window.open('https://www.overleaf.com/project', '_blank');
+    } finally {
+      setLoading(false);
+    }
+  }, [latexCode]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -138,44 +163,7 @@ export default function TailorPage() {
     }
   }, []);
 
-  const handleCompileToPDF = useCallback(async () => {
-    if (!texContent) return;
-    
-    setPdfGenerating(true);
-    setError(null);
-    
-    try {
-      const { marked } = await import('marked');
-      const { default: html2pdf } = await import('html2pdf.js');
-      
-      const htmlContent = marked.parse(texContent);
-      
-      const container = document.createElement('div');
-      container.innerHTML = htmlContent as string;
-      container.style.padding = '40px';
-      container.style.fontFamily = 'Arial, sans-serif';
-      container.style.lineHeight = '1.6';
-      container.style.color = '#000';
-      
-      await html2pdf(container, {
-        margin: 0.5,
-        filename: 'resume_tailored.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-      });
-      
-      setPdfGenerating(false);
-    } catch (err) {
-      console.error('PDF generation error:', err);
-      setError('Failed to generate PDF. Please try again.');
-      setPdfGenerating(false);
-    }
-  }, [texContent]);
 
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-  }, []);
 
   return (
     <main className="min-h-screen bg-black relative overflow-hidden">
@@ -187,7 +175,7 @@ export default function TailorPage() {
         <div className="absolute bottom-20 left-1/3 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000 pointer-events-none" />
       </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-6 py-12">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-12">
         <div className="flex items-center justify-between mb-12 backdrop-blur-sm">
           <Link href="/" className="text-2xl font-bold hover:scale-105 transition-transform">
             <span className="bg-gradient-to-b from-neutral-200 via-neutral-400 to-neutral-600 bg-clip-text text-transparent">RoleFit</span>
@@ -197,7 +185,7 @@ export default function TailorPage() {
           </Link>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 relative">
+        <form onSubmit={handleSubmit} className="space-y-6 relative max-w-4xl mx-auto">
           <div>
             <label className="block text-neutral-300 font-semibold mb-3">
               Your Resume
@@ -254,7 +242,7 @@ export default function TailorPage() {
                       <p className="text-neutral-500 text-sm">{(resumeFile.size / 1024).toFixed(2)} KB</p>
                       <button
                         type="button"
-                        onClick={() => setResumeFile(null)}
+                        onClick={(e) => { e.stopPropagation(); setResumeFile(null); }}
                         className="text-neutral-400 hover:text-white text-sm underline"
                       >
                         Remove
@@ -272,31 +260,27 @@ export default function TailorPage() {
                 </div>
               </div>
             ) : (
-              <div className="relative">
-                <textarea
-                  value={resumeText}
-                  onChange={(e) => setResumeText(e.target.value)}
-                  placeholder="Paste your resume content here..."
-                  className="w-full h-64 px-4 py-3 bg-neutral-900/50 backdrop-blur-sm border border-neutral-800 rounded-lg text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all resize-none"
-                  disabled={loading}
-                />
-              </div>
+              <textarea
+                value={resumeText}
+                onChange={(e) => setResumeText(e.target.value)}
+                placeholder="Paste your resume content here..."
+                className="w-full h-64 px-4 py-3 bg-neutral-900/50 backdrop-blur-sm border border-neutral-800 rounded-lg text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all resize-none"
+                disabled={loading}
+              />
             )}
           </div>
 
           <div>
             <label className="block text-neutral-300 font-semibold mb-3">
-              Paste Job Description
+              Job Description
             </label>
-            <div className="relative">
-              <textarea
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                placeholder="Paste the full job description here..."
-                className="w-full h-96 px-4 py-3 bg-neutral-900/50 backdrop-blur-sm border border-neutral-800 rounded-lg text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all resize-none"
-                disabled={loading}
-              />
-            </div>
+            <textarea
+              value={jobDescription}
+              onChange={(e) => setJobDescription(e.target.value)}
+              placeholder="Paste the full job description here..."
+              className="w-full h-64 px-4 py-3 bg-neutral-900/50 backdrop-blur-sm border border-neutral-800 rounded-lg text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all resize-none"
+              disabled={loading}
+            />
           </div>
 
           <button
@@ -317,101 +301,77 @@ export default function TailorPage() {
         </form>
 
         {error && (
-          <div className="mt-6 p-4 bg-red-900/20 backdrop-blur-sm border border-red-800/50 rounded-lg flex items-start gap-3">
+          <div className="mt-6 p-4 bg-red-900/20 backdrop-blur-sm border border-red-800/50 rounded-lg flex items-start gap-3 max-w-4xl mx-auto">
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
             <p className="text-red-300 text-sm">{error}</p>
           </div>
         )}
 
-        {result && (
-          <div className="mt-6 space-y-4">
-            <div className="flex gap-3">
-              <button
-                onClick={() => handleViewModeChange("preview")}
-                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-                  viewMode === "preview"
-                    ? "bg-white text-black"
-                    : "bg-neutral-900/50 text-neutral-300 hover:bg-neutral-900/80"
-                }`}
-              >
-                <Eye className="w-4 h-4 inline mr-2" /> Preview
-              </button>
-              <button
-                onClick={() => handleViewModeChange("download")}
-                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-                  viewMode === "download"
-                    ? "bg-white text-black"
-                    : "bg-neutral-900/50 text-neutral-300 hover:bg-neutral-900/80"
-                }`}
-              >
-                <Download className="w-4 h-4 inline mr-2" /> Download
-              </button>
+        {latexCode && (
+          <div className="mt-6 p-6 bg-neutral-900/50 backdrop-blur-sm border border-green-700 rounded-lg max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold text-lg">LaTeX Code Generated!</h3>
+                  <p className="text-green-300 text-sm">Compile on Overleaf to get your PDF</p>
+                </div>
+              </div>
             </div>
 
-            {viewMode === "preview" && texContent && (
-              <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg">
-                <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-400" /> Resume Preview
-                </h3>
-                <div className="bg-black/50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  <pre className="text-neutral-300 text-xs font-mono whitespace-pre-wrap">{texContent}</pre>
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <button
-                    onClick={handleReTailor}
-                    className="flex-1 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
-                  >
-                    <RefreshCw className="w-4 h-4 inline mr-2" /> Re-Tailor
-                  </button>
-                  <button
-                    onClick={handleCompileToPDF}
-                    disabled={pdfGenerating}
-                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-green-800 text-white font-semibold rounded-lg transition-all hover:scale-105 group"
-                  >
-                    {pdfGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 inline mr-2 animate-spin" /> Generating...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-4 h-4 inline mr-2" /> Download PDF
-                      </>
-                    )}
-                  </button>
-                </div>
+            <div className="space-y-3">
+              <div className="bg-black/50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                <pre className="text-neutral-300 text-xs font-mono whitespace-pre-wrap break-words">{latexCode}</pre>
               </div>
-            )}
 
-            {viewMode === "download" && (
-              <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg">
-                <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-400" /> Resume Tailored Successfully!
-                </h3>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleReTailor}
-                    className="flex-1 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
-                  >
-                    <RefreshCw className="w-4 h-4 inline mr-2" /> Re-Tailor
-                  </button>
-                  <button
-                    onClick={handleCompileToPDF}
-                    disabled={pdfGenerating}
-                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-green-800 text-white font-semibold rounded-lg transition-all hover:scale-105 group"
-                  >
-                    {pdfGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 inline mr-2 animate-spin" /> Generating...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-4 h-4 inline mr-2" /> Download PDF
-                      </>
-                    )}
-                  </button>
-                </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={handleCopyLatex}
+                  className="px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-5 h-5" />
+                      Copy LaTeX Code
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleOpenOverleaf}
+                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                  Open in Overleaf
+                </button>
               </div>
-            )}
+
+              <div className="mt-4 p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg">
+                <p className="text-blue-300 text-sm">
+                  <strong>How to compile:</strong>
+                </p>
+                <ol className="text-blue-300 text-sm mt-2 space-y-1 list-decimal list-inside">
+                  <li>Click "Open in Overleaf" (creates project automatically)</li>
+                  <li>Wait for Overleaf to load your project</li>
+                  <li>Click "Recompile" if needed</li>
+                  <li>Download your PDF from Overleaf</li>
+                </ol>
+              </div>
+
+              <button
+                onClick={handleReset}
+                className="w-full px-6 py-3 bg-neutral-900/50 hover:bg-neutral-800 text-neutral-300 hover:text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" /> Tailor Another Resume
+              </button>
+            </div>
           </div>
         )}
       </div>

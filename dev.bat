@@ -3,7 +3,7 @@ echo Starting RoleFit Development Environment...
 echo.
 
 echo [1/2] Starting Backend API on port 8000...
-start cmd /k "cd backend && venv\Scripts\activate && uvicorn api:app --reload --host 0.0.0.0 --port 8000"
+start cmd /k "cd backend && venv\Scripts\activate && uvicorn api_latex:app --reload --host 0.0.0.0 --port 8000"
 
 timeout /t 3 /nobreak > nul
 

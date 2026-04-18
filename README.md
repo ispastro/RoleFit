@@ -1,6 +1,6 @@
 # 🎯 RoleFit - AI Resume Tailoring
 
-**Upload your resume. Paste a job description. Get a perfectly tailored resume. In seconds.**
+**Upload your resume. Paste a job description. Get tailored LaTeX code. Compile on Overleaf.**
 
 Built with FastAPI, Next.js, and Groq AI.
 
@@ -41,7 +41,7 @@ cp .env.example .env
 dev.bat  # Windows
 
 # Or manually:
-# Terminal 1: cd backend && uvicorn api:app --reload
+# Terminal 1: cd backend && uvicorn api_latex:app --reload
 # Terminal 2: cd frontend && npm run dev
 ```
 
@@ -62,8 +62,8 @@ RoleFit/
 │   │   │   ├── ai/          # Groq AI services
 │   │   │   └── parsers/     # File extractors
 │   │   └── presentation/     # CLI
-│   ├── output/        # Generated resumes
-│   └── api.py         # FastAPI server
+│   ├── templates/     # LaTeX template
+│   └── api_latex.py   # FastAPI server
 │
 ├── frontend/          # Next.js UI
 │   ├── app/
@@ -85,7 +85,8 @@ RoleFit/
    - **Skills**: Reordered + adds missing skills from job
    - **Experience**: Keywords added (preserves original tech stacks)
    - **Projects/Education**: Unchanged
-5. **Download PDF** (in-browser conversion)
+5. **Get LaTeX code** displayed on screen
+6. **Click "Open in Overleaf"** to compile to PDF
 
 ---
 
@@ -102,19 +103,17 @@ RoleFit/
 - Next.js 16
 - TypeScript
 - Tailwind CSS 4
-- marked (Markdown parser)
-- html2pdf.js (PDF generation)
 - Lucide Icons
 
 ---
 
 ## 📝 API Endpoints
 
-- `POST /api/tailor` - Tailor resume (multipart/form-data)
+- `POST /api/tailor-latex` - Generate tailored LaTeX code
   - `job_description`: string (required)
   - `resume_file`: file (optional - PDF/DOCX/TXT/MD)
   - `resume_text`: string (optional - pasted text)
-- `GET /api/download/{filename}` - Download tailored resume
+  - Returns: `{"latex_code": "...", "message": "..."}`
 - `GET /health` - Health check
 - `GET /docs` - Interactive API docs
 
@@ -129,7 +128,7 @@ RoleFit/
 - 📱 Responsive design
 - 🎯 Smart AI matching
 - ✨ Preserves structure and truth
-- 📄 In-browser PDF generation (no external services)
+- 📄 LaTeX code output (compile on Overleaf)
 - 🌐 Deploy anywhere
 
 ---
