@@ -1,6 +1,6 @@
 # 🎯 RoleFit - AI Resume Tailoring
 
-**Paste a job description. Get a perfectly tailored resume. In seconds.**
+**Upload your resume. Paste a job description. Get a perfectly tailored resume. In seconds.**
 
 Built with FastAPI, Next.js, and Groq AI.
 
@@ -59,8 +59,9 @@ RoleFit/
 │   ├── src/
 │   │   ├── domain/           # Business logic
 │   │   ├── infrastructure/   # AI & parsers
+│   │   │   ├── ai/          # Groq AI services
+│   │   │   └── parsers/     # File extractors
 │   │   └── presentation/     # CLI
-│   ├── latex/         # Your resume template
 │   ├── output/        # Generated resumes
 │   └── api.py         # FastAPI server
 │
@@ -77,11 +78,14 @@ RoleFit/
 
 ## 🎯 How It Works
 
-1. **Paste** job description in the UI
-2. **AI analyzes** requirements using Groq (Llama 3.3 70B)
-3. **Tailors** your resume sections to match
-4. **Compiles** to PDF via cloud API
-5. **Download** ready-to-apply PDF
+1. **Upload/Paste** your resume (PDF, DOCX, TXT, MD)
+2. **Paste** job description
+3. **AI analyzes** requirements using Groq (Llama 3.3 70B)
+4. **Tailors** resume:
+   - **Skills**: Reordered + adds missing skills from job
+   - **Experience**: Keywords added (preserves original tech stacks)
+   - **Projects/Education**: Unchanged
+5. **Download PDF** (in-browser conversion)
 
 ---
 
@@ -89,23 +93,28 @@ RoleFit/
 
 **Backend:**
 - FastAPI (API)
-- Groq AI (LLM)
-- LaTeX Online API (PDF compilation)
+- Groq AI (Llama 3.3 70B)
+- PyPDF2 (PDF parsing)
+- python-docx (DOCX parsing)
 - Python 3.13
 
 **Frontend:**
 - Next.js 16
 - TypeScript
 - Tailwind CSS 4
+- marked (Markdown parser)
+- html2pdf.js (PDF generation)
 - Lucide Icons
-- Geist Font
 
 ---
 
 ## 📝 API Endpoints
 
-- `POST /api/tailor` - Tailor resume
-- `GET /api/download/{filename}` - Download PDF
+- `POST /api/tailor` - Tailor resume (multipart/form-data)
+  - `job_description`: string (required)
+  - `resume_file`: file (optional - PDF/DOCX/TXT/MD)
+  - `resume_text`: string (optional - pasted text)
+- `GET /api/download/{filename}` - Download tailored resume
 - `GET /health` - Health check
 - `GET /docs` - Interactive API docs
 
@@ -114,19 +123,35 @@ RoleFit/
 ## 🔥 Features
 
 - ⚡ Lightning fast (Groq inference)
+- 📤 Upload resume (PDF, DOCX, TXT, MD) or paste text
 - 🎨 Clean, minimalist UI with Aurora-style design
 - 🔒 Secure (API key in .env)
 - 📱 Responsive design
 - 🎯 Smart AI matching
-- ✨ Preserves your voice
-- 📄 Automatic PDF generation (no LaTeX installation needed)
+- ✨ Preserves structure and truth
+- 📄 In-browser PDF generation (no external services)
 - 🌐 Deploy anywhere
 
 ---
 
-## 🚀 Deployment
+## 🧠 AI Logic
 
-No LaTeX installation required! The app uses a free cloud API for PDF compilation.
+**Skills Section:**
+- Reorders existing skills to match job
+- **Adds missing skills from job** (you're applying, so you can learn them)
+- Groups related skills
+
+**Experience Section:**
+- Adds relevant keywords naturally
+- **Never adds new tech stacks** (keeps it truthful)
+- Rewords to emphasize relevance
+
+**Projects & Education:**
+- Completely unchanged
+
+---
+
+## 🚀 Deployment
 
 **Deploy to:**
 - Vercel (Frontend)

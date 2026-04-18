@@ -14,6 +14,10 @@ export default function TailorPage() {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeText, setResumeText] = useState("");
+  const [inputMode, setInputMode] = useState<'file' | 'text'>('file');
+  const [isDragging, setIsDragging] = useState(false);
 
   const API_URL = useMemo(
     () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
@@ -33,6 +37,16 @@ export default function TailorPage() {
       return;
     }
 
+    if (inputMode === 'file' && !resumeFile) {
+      setError("Please upload your resume");
+      return;
+    }
+
+    if (inputMode === 'text' && !resumeText.trim()) {
+      setError("Please paste your resume");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
@@ -42,10 +56,18 @@ export default function TailorPage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
 
+      const formData = new FormData();
+      formData.append('job_description', jobDescription);
+      
+      if (inputMode === 'file' && resumeFile) {
+        formData.append('resume_file', resumeFile);
+      } else if (inputMode === 'text') {
+        formData.append('resume_text', resumeText);
+      }
+
       const response = await fetch(`${API_URL}/api/tailor`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_description: jobDescription }),
+        body: formData,
         signal: controller.signal
       });
 
@@ -78,13 +100,42 @@ export default function TailorPage() {
     } finally {
       setLoading(false);
     }
-  }, [jobDescription, isFormValid, API_URL]);
+  }, [jobDescription, isFormValid, API_URL, inputMode, resumeFile, resumeText]);
 
   const handleReTailor = useCallback(() => {
     setViewMode("preview");
     setResult(null);
     setTexContent(null);
     setError(null);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const validExtensions = ['.pdf', '.docx', '.txt', '.md'];
+      const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      
+      if (validExtensions.includes(fileExtension)) {
+        setResumeFile(file);
+        setInputMode('file');
+      } else {
+        setError('Invalid file type. Please upload PDF, DOCX, TXT, or MD files.');
+      }
+    }
   }, []);
 
   const handleCompileToPDF = useCallback(async () => {
@@ -94,32 +145,30 @@ export default function TailorPage() {
     setError(null);
     
     try {
-      // Fallback: Open Overleaf since latex.js doesn't support complex packages
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = 'https://www.overleaf.com/docs';
-      form.target = '_blank';
+      const { marked } = await import('marked');
+      const { default: html2pdf } = await import('html2pdf.js');
       
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'snip';
-      input.value = texContent;
+      const htmlContent = marked.parse(texContent);
       
-      const nameInput = document.createElement('input');
-      nameInput.type = 'hidden';
-      nameInput.name = 'snip_name';
-      nameInput.value = 'resume.tex';
+      const container = document.createElement('div');
+      container.innerHTML = htmlContent as string;
+      container.style.padding = '40px';
+      container.style.fontFamily = 'Arial, sans-serif';
+      container.style.lineHeight = '1.6';
+      container.style.color = '#000';
       
-      form.appendChild(input);
-      form.appendChild(nameInput);
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
+      await html2pdf(container, {
+        margin: 0.5,
+        filename: 'resume_tailored.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      });
       
       setPdfGenerating(false);
     } catch (err) {
       console.error('PDF generation error:', err);
-      setError('Failed to open Overleaf. Please download LaTeX file instead.');
+      setError('Failed to generate PDF. Please try again.');
       setPdfGenerating(false);
     }
   }, [texContent]);
@@ -130,7 +179,6 @@ export default function TailorPage() {
 
   return (
     <main className="min-h-screen bg-black relative overflow-hidden">
-      {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000,transparent)]" />
         <div className="absolute top-40 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-gradient-to-br from-neutral-800/30 via-neutral-700/15 to-transparent rounded-full blur-3xl pointer-events-none" />
@@ -152,15 +200,100 @@ export default function TailorPage() {
         <form onSubmit={handleSubmit} className="space-y-6 relative">
           <div>
             <label className="block text-neutral-300 font-semibold mb-3">
+              Your Resume
+            </label>
+            
+            <div className="flex gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setInputMode('file')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  inputMode === 'file'
+                    ? 'bg-white text-black'
+                    : 'bg-neutral-900/50 text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode('text')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  inputMode === 'text'
+                    ? 'bg-white text-black'
+                    : 'bg-neutral-900/50 text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                Paste Text
+              </button>
+            </div>
+
+            {inputMode === 'file' ? (
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative border-2 border-dashed rounded-lg transition-all ${
+                  isDragging
+                    ? 'border-white bg-neutral-800/50'
+                    : 'border-neutral-700 bg-neutral-900/50'
+                }`}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md"
+                  onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  disabled={loading}
+                />
+                <div className="px-6 py-8 text-center">
+                  {resumeFile ? (
+                    <div className="space-y-2">
+                      <FileText className="w-12 h-12 mx-auto text-green-400" />
+                      <p className="text-neutral-200 font-medium">{resumeFile.name}</p>
+                      <p className="text-neutral-500 text-sm">{(resumeFile.size / 1024).toFixed(2)} KB</p>
+                      <button
+                        type="button"
+                        onClick={() => setResumeFile(null)}
+                        className="text-neutral-400 hover:text-white text-sm underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Download className="w-12 h-12 mx-auto text-neutral-500" />
+                      <p className="text-neutral-300">
+                        <span className="font-semibold">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-neutral-500 text-sm">PDF, DOCX, TXT, or MD (max 10MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="relative">
+                <textarea
+                  value={resumeText}
+                  onChange={(e) => setResumeText(e.target.value)}
+                  placeholder="Paste your resume content here..."
+                  className="w-full h-64 px-4 py-3 bg-neutral-900/50 backdrop-blur-sm border border-neutral-800 rounded-lg text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all resize-none"
+                  disabled={loading}
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-neutral-300 font-semibold mb-3">
               Paste Job Description
             </label>
             <div className="relative">
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-neutral-600 to-neutral-800 rounded-lg blur opacity-0 group-focus-within:opacity-30 transition duration-300" />
               <textarea
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
                 placeholder="Paste the full job description here..."
-                className="relative w-full h-96 px-4 py-3 bg-neutral-900/50 backdrop-blur-sm border border-neutral-800 rounded-lg text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all resize-none"
+                className="w-full h-96 px-4 py-3 bg-neutral-900/50 backdrop-blur-sm border border-neutral-800 rounded-lg text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all resize-none"
                 disabled={loading}
               />
             </div>
@@ -200,7 +333,6 @@ export default function TailorPage() {
                     ? "bg-white text-black"
                     : "bg-neutral-900/50 text-neutral-300 hover:bg-neutral-900/80"
                 }`}
-                aria-pressed={viewMode === "preview"}
               >
                 <Eye className="w-4 h-4 inline mr-2" /> Preview
               </button>
@@ -211,92 +343,72 @@ export default function TailorPage() {
                     ? "bg-white text-black"
                     : "bg-neutral-900/50 text-neutral-300 hover:bg-neutral-900/80"
                 }`}
-                aria-pressed={viewMode === "download"}
               >
                 <Download className="w-4 h-4 inline mr-2" /> Download
               </button>
             </div>
 
             {viewMode === "preview" && texContent && (
-              <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg relative overflow-hidden">
-                <div className="relative">
-                  <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-400" /> Resume Preview
-                  </h3>
-                  <div className="bg-black/50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                    <pre className="text-neutral-300 text-xs font-mono whitespace-pre-wrap">{texContent}</pre>
-                  </div>
-                  <div className="mt-4 flex gap-3">
-                    <button
-                      onClick={handleReTailor}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
-                    >
-                      <RefreshCw className="w-4 h-4" /> Re-Tailor
-                    </button>
-                    <button
-                      onClick={handleCompileToPDF}
-                      disabled={pdfGenerating}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-green-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-green-500/20 disabled:hover:scale-100 group"
-                    >
-                      {pdfGenerating ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="w-4 h-4 group-hover:animate-pulse" /> Compile to PDF
-                        </>
-                      )}
-                    </button>
-                    <a
-                      href={result}
-                      download
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-neutral-100 text-black font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20 group"
-                    >
-                      <Download className="w-4 h-4 group-hover:animate-bounce" /> Download LaTeX
-                    </a>
-                  </div>
+              <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg">
+                <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-400" /> Resume Preview
+                </h3>
+                <div className="bg-black/50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                  <pre className="text-neutral-300 text-xs font-mono whitespace-pre-wrap">{texContent}</pre>
+                </div>
+                <div className="mt-4 flex gap-3">
+                  <button
+                    onClick={handleReTailor}
+                    className="flex-1 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
+                  >
+                    <RefreshCw className="w-4 h-4 inline mr-2" /> Re-Tailor
+                  </button>
+                  <button
+                    onClick={handleCompileToPDF}
+                    disabled={pdfGenerating}
+                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-green-800 text-white font-semibold rounded-lg transition-all hover:scale-105 group"
+                  >
+                    {pdfGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 inline mr-2 animate-spin" /> Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-4 h-4 inline mr-2" /> Download PDF
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}
 
             {viewMode === "download" && (
-              <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-green-500/5 animate-pulse" />
-                <div className="relative">
-                  <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-400" /> Resume Tailored Successfully!
-                  </h3>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleReTailor}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
-                    >
-                      <RefreshCw className="w-4 h-4" /> Re-Tailor
-                    </button>
-                    <button
-                      onClick={handleCompileToPDF}
-                      disabled={pdfGenerating}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-green-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-green-500/20 disabled:hover:scale-100 group"
-                    >
-                      {pdfGenerating ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="w-4 h-4 group-hover:animate-pulse" /> Compile to PDF
-                        </>
-                      )}
-                    </button>
-                    <a
-                      href={result}
-                      download
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-neutral-100 text-black font-semibold rounded-lg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-white/20 group"
-                    >
-                      <Download className="w-4 h-4 group-hover:animate-bounce" /> Download LaTeX
-                    </a>
-                  </div>
+              <div className="p-6 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg">
+                <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-400" /> Resume Tailored Successfully!
+                </h3>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleReTailor}
+                    className="flex-1 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg transition-all"
+                  >
+                    <RefreshCw className="w-4 h-4 inline mr-2" /> Re-Tailor
+                  </button>
+                  <button
+                    onClick={handleCompileToPDF}
+                    disabled={pdfGenerating}
+                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-green-800 text-white font-semibold rounded-lg transition-all hover:scale-105 group"
+                  >
+                    {pdfGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 inline mr-2 animate-spin" /> Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-4 h-4 inline mr-2" /> Download PDF
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}

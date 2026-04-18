@@ -1,11 +1,10 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from typing import Optional
 import os
 import logging
 from pathlib import Path
-import urllib.parse
 
 from src.domain.entities.resume import Resume
 from src.domain.entities.job import Job
@@ -13,9 +12,9 @@ from src.domain.use_cases.tailor_resume import TailorResumeUseCase
 from src.infrastructure.ai.job_analyzer import JobAnalyzer
 from src.infrastructure.ai.resume_analyzer import ResumeAnalyzer
 from src.infrastructure.ai.content_rewriter import ContentRewriter
-from src.infrastructure.parsers.latex_parser import LaTeXParser
-from src.infrastructure.parsers.latex_generator import LaTeXGenerator
-from src.infrastructure.parsers.pdf_compiler import compile_latex_to_pdf
+from src.infrastructure.parsers.plaintext_parser import PlainTextParser
+from src.infrastructure.parsers.markdown_generator import MarkdownGenerator
+from src.infrastructure.parsers.file_extractor import extract_text_from_file
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +33,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from pydantic import BaseModel
+
 class TailorRequest(BaseModel):
     job_description: str
 
@@ -51,53 +52,68 @@ def health_check():
     return {"status": "healthy", "service": "RoleFit API"}
 
 @app.post("/api/tailor", response_model=TailorResponse)
-async def tailor_resume(body: TailorRequest, request: Request):
+async def tailor_resume(
+    job_description: str = Form(...),
+    resume_file: Optional[UploadFile] = File(None),
+    resume_text: Optional[str] = Form(None)
+):
     try:
         logger.info("Received tailoring request")
         
-        if not body.job_description.strip():
+        if not job_description or not job_description.strip():
             raise HTTPException(status_code=400, detail="Job description is required")
         
-        resume_path = os.path.join("latex", "haile_resume.tex")
-        if not os.path.exists(resume_path):
-            logger.error(f"Resume template not found at {resume_path}")
-            raise HTTPException(status_code=404, detail="Resume template not found")
+        # Get resume content (file upload, pasted text, or default template)
+        resume_content = None
+        
+        if resume_file:
+            # File uploaded
+            logger.info(f"Processing uploaded file: {resume_file.filename}")
+            file_content = await resume_file.read()
+            resume_content = extract_text_from_file(file_content, resume_file.filename)
+        elif resume_text:
+            # Text pasted
+            logger.info("Processing pasted resume text")
+            resume_content = resume_text
+        else:
+            raise HTTPException(status_code=400, detail="Please upload or paste your resume")
+        
+        # Parse and tailor
+        parser = PlainTextParser(resume_content)
+        generator = MarkdownGenerator()
         
         logger.info("Parsing resume...")
-        parser = LaTeXParser(resume_path)
         resume_sections = parser.get_all_sections()
         resume = Resume.from_sections(resume_sections)
-        job = Job(description=body.job_description)
+        job = Job(description=job_description)
         
         logger.info("Initializing AI services...")
         use_case = TailorResumeUseCase(
             job_analyzer=JobAnalyzer(),
             resume_analyzer=ResumeAnalyzer(),
             content_rewriter=ContentRewriter(),
-            latex_generator=LaTeXGenerator(resume_path)
+            latex_generator=generator
         )
         
-        output_path = os.path.join("output", "tailored_resume.tex")
+        output_path = os.path.join("output", "tailored_resume.md")
         os.makedirs("output", exist_ok=True)
         
         logger.info("Tailoring resume...")
         result = use_case.execute(resume, job, output_path)
         
-        # Read the LaTeX content for preview
+        # Read the content for preview
         if not os.path.exists(result):
             raise RuntimeError("Failed to generate tailored resume")
             
         with open(result, 'r', encoding='utf-8') as f:
-            tex_content = f.read()
+            content = f.read()
         
-        # For now, return .tex file directly
-        # PDF compilation APIs are unreliable
         logger.info(f"Resume tailored successfully: {result}")
         
         return TailorResponse(
             message="Resume tailored successfully",
             download_url=f"/api/download/{Path(result).name}",
-            tex_content=tex_content
+            tex_content=content
         )
     
     except HTTPException:
@@ -109,9 +125,9 @@ async def tailor_resume(body: TailorRequest, request: Request):
 @app.get("/api/download/{filename}")
 async def download_resume(filename: str):
     try:
-        # Allow both PDF and TEX downloads
-        if not (filename.endswith('.pdf') or filename.endswith('.tex')):
-            raise HTTPException(status_code=400, detail="Only PDF and TEX downloads are supported")
+        # Only allow MD downloads
+        if not filename.endswith('.md'):
+            raise HTTPException(status_code=400, detail="Only Markdown downloads are supported")
         
         # Sanitize filename to prevent directory traversal
         filename = os.path.basename(filename)
@@ -121,10 +137,7 @@ async def download_resume(filename: str):
             raise HTTPException(status_code=404, detail="File not found")
         
         # Determine media type
-        if filename.endswith('.pdf'):
-            media_type = "application/pdf"
-        else:
-            media_type = "application/x-latex"
+        media_type = "text/markdown"
         
         logger.info(f"Serving file: {filename}")
         return FileResponse(
