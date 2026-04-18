@@ -43,8 +43,6 @@ cp .env.example .env
 dev.bat  # Windows
 # Or: Terminal 1: cd backend && uvicorn api_latex:app --reload
 #     Terminal 2: cd frontend && npm run dev
-
-# 4. Open http://localhost:3000
 ```
 
 **Get your free Groq API key:** [console.groq.com](https://console.groq.com)
@@ -193,7 +191,7 @@ Generate tailored LaTeX code
 
 **Request:**
 ```bash
-curl -X POST http://localhost:8000/api/tailor-latex \
+curl -X POST <your-api-url>/api/tailor-latex \
   -F "job_description=Senior Full-Stack Engineer..." \
   -F "resume_file=@resume.pdf"
 ```
@@ -228,8 +226,6 @@ Evaluate resume quality (5 dimensions)
 
 ### `GET /health`
 Health check
-
-**Interactive docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
