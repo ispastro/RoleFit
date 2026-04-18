@@ -79,6 +79,45 @@ graph LR
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+
+### Landing Page
+![Landing Page](.github/images/landing_page.png)
+
+### Step-by-Step Workflow
+
+<table>
+<tr>
+<td width="33%">
+
+**1. Upload Resume**
+![Upload](.github/images/landing_part1.png)
+
+</td>
+<td width="33%">
+
+**2. Paste Job Description**
+![Paste Job](.github/images/landing_part2.png)
+
+</td>
+<td width="33%">
+
+**3. Get LaTeX Code**
+![LaTeX Output](.github/images/landing_part3.png)
+
+</td>
+</tr>
+</table>
+
+### Upload Interface
+![Upload Interface](.github/images/upload.png)
+
+</div>
+
+---
+
 ## 🔥 Features
 
 - ⚡ **Lightning Fast** - 3-8 seconds with Groq AI (Llama 3.3 70B)
